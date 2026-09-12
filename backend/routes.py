@@ -51,3 +51,76 @@ def parse_json(data):
 ######################################################################
 # INSERT CODE HERE
 ######################################################################
+@app.route("/health")
+def health():
+    return jsonify(dict(status="OK")), 200
+
+@app.route("/count")
+def count():
+    if songs_list:
+        return jsonify(count=len(songs_list)), 200
+    return {"message": "Internal server error"}, 500
+
+@app.route("/song", methods=["GET"])
+def get_songs():
+    song_list = list(db.songs.find())
+    for song in song_list:
+        song["_id"] = str(song["_id"])
+    return jsonify({"songs": song_list}), 200
+
+@app.route("/song/<int:id>", methods=["GET"])
+def get_song_by_id(id):
+    song = db.songs.find_one({"id":id})
+    if song is None:
+        return {"message": "song with id not found"}, 404
+
+    song["_id"] = str(song["_id"])
+    return jsonify(song), 200
+
+@app.route("/song", methods=["POST"])
+def create_song():
+    data = {
+        "id": request.json.get("id"),
+        "lyrics": request.json.get("lyrics"),
+        "title": request.json.get("title"),
+    }
+    song = db.songs.find_one({"id": data["id"]})
+
+    if song is not None:
+        return {"message": f"song with id {data['id']} already present"
+        }, 302
+
+    result = db.songs.insert_one(data)
+
+    return {
+        "inserted_id": str(result.inserted_id)
+    }, 201
+
+@app.route("/song/<int:id>", methods=["PUT"])
+def update_song(id):
+    data = request.json
+    song = db.songs.find_one({"id": id})
+    if song is None:
+        return {"message": "song with id not found"}, 404
+   
+    result = db.songs.update_one(
+        {"id": id}, 
+        {"$set":data})
+
+    if result.modified_count == 0:
+        return {"message": "song found, but nothing updated"}, 200
+
+    updated_song = db.songs.find_one({"id": id})
+    updated_song["_id"] = str(updated_song["_id"])
+
+    return jsonify(updated_song), 200
+
+@app.route("/song/<int:id>", methods=["DELETE"])
+def delete_song(id):
+    song = db.songs.find_one({"id": id})
+    if song is None:
+        return {"message": "song not found"}, 404
+    
+    result = db.songs.delete_one({"id": id})
+    
+    return "", 204
